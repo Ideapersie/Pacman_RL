@@ -41,6 +41,23 @@ class MDPAgent(Agent):
     def __init__(self):
         print("Starting up MDPAgent!")
         name = "Pacman"
+        
+        # MDP parameters 
+        self.gamma = 0.9 
+        self.theta = 0.01
+        self.max_iterations = 100
+        
+        self.values = util.Counter()
+        
+        # Define direction vectors
+        self.direction_vectors = {
+            Directions.NORTH: (0, 1),
+            Directions.SOUTH: (0, -1),
+            Directions.EAST: (1, 0),
+            Directions.WEST: (-1, 0),
+            Directions.STOP: (0, 0)
+        }
+
 
     # Gets run after an MDPAgent object is created and once there is
     # game state to access.
