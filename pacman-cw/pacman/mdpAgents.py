@@ -58,7 +58,6 @@ class MDPAgent(Agent):
             Directions.STOP: (0, 0)
         }
 
-
     # Gets run after an MDPAgent object is created and once there is
     # game state to access.
     def registerInitialState(self, state):
@@ -72,6 +71,7 @@ class MDPAgent(Agent):
 
     # For now I just move randomly
     def getAction(self, state):
+        """
         # Get the actions we can try, and remove "STOP" if that is one of them.
         legal = api.legalActions(state)
         if Directions.STOP in legal:
@@ -183,8 +183,6 @@ class MDPAgent(Agent):
         else: 
             # Time penalty for each move
             return -1
-
-    
         
     # Value iteration
     def registerInitialState(self, state):
