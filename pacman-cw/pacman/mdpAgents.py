@@ -58,6 +58,7 @@ class MDPAgent(Agent):
             Directions.STOP: (0, 0)
         }
 
+
     # Gets run after an MDPAgent object is created and once there is
     # game state to access.
     def registerInitialState(self, state):
@@ -65,20 +66,64 @@ class MDPAgent(Agent):
         print("I'm at:")
         print(api.whereAmI(state))
         
+        # Initialize value function 
+        from util import Counter 
+        self.values = Counter() # V(s) for all states
+        
+        # Lazy evaluations 
+        for iteration in range(self.max_iterations):
+            # Collect states to update 
+            states_update = set(self.values.keys())
+            states_update.add(self.getStateKey(state)) # Add initial
+            
+            # Update the walls
+            self.walls = api.walls(state)
+            
+            new_values = Counter()
+            max_change = 0 
+            
+            for s in states_update:
+                # skip terminal states (no food)
+                if len(s[1]) == 0:
+                    new_values[s] = 0
+                    continue 
+                
+                # Compute max over actions
+                max_value = float('-inf')
+                
+                for action in [Directions.NORTH, Directions.SOUTH,
+                               Directions.EAST, Directions.WEST]:
+                    # Compute Q(s,a) = P(s'|s,a) [R + gamma V(s')]
+                    q_value = 0 
+                    transitions = self.getTransitionStates(s, action)
+                    
+                    # Calculate the q_value 
+                    for next_s, prob in transitions:
+                        reward = self.getReward(s, action, next_s)
+                        q_value += prob * (reward + self.gamma * self.values[next_s])
+                    
+                    # Max value
+                    max_value = max(max_value, q_value)
+                
+                new_values[s] = max_value 
+                max_change = max(max_change, abs(new_values[s] - self.values[s]))
+                
+            self.values = new_values
+            
+            # Check convergence 
+            if max_change < self.theta:
+                print(f"Convered after {iteration +1} iterations")
+                break 
+        
+        print("Value iteration Complete")
+        
     # This is what gets run in between multiple games
     def final(self, state):
         print("Looks like the game just ended!")
 
     # For now I just move randomly
     def getAction(self, state):
-        """
-        # Get the actions we can try, and remove "STOP" if that is one of them.
-        legal = api.legalActions(state)
-        if Directions.STOP in legal:
-            legal.remove(Directions.STOP)
-        # Random choice between the legal options.
-        return api.makeMove(random.choice(legal), legal)
-        """
+        # Curren state of env.
         current_state = self.getStateKey(state)
         legal = api.legalActions(state)
         
@@ -112,7 +157,7 @@ class MDPAgent(Agent):
     # Getting current state 
     def getStateKey(self, state):
         current_pos = api.whereAmI(state)
-        food_pos = api.food
+        food_pos = api.food(state)
         # Convert food list to tuple 
         food_tuple = tuple(sorted(food_pos))
         
@@ -148,17 +193,16 @@ class MDPAgent(Agent):
             return[Directions.NORTH, Directions.SOUTH]
         
     # Simulate taking action, returns state 
-    def simulateAction(self, state, action):
-        pacman_pos = api.whereAmI(state)
-        food_list = list(api.food(state))
-        walls = api.walls(state)
+    def simulateAction(self, state_key, action):
+        pacman_pos, food_tuple = state_key
+        food_list = list(food_tuple)
         
         # Get next position based on action 
         x, y = self.direction_vectors[action]
         next_pos = (pacman_pos[0] + x, pacman_pos[1] + y)
         
         # Check if wall 
-        if next_pos in walls:
+        if next_pos in self.walls:
             next_pos = pacman_pos
             
         # Update food if eaten 
@@ -184,60 +228,6 @@ class MDPAgent(Agent):
             # Time penalty for each move
             return -1
         
-    # Value iteration
-    def registerInitialState(self, state):
-        print("Running Value Iteration...")
+    
         
-        # Parameters 
-        self.gamma = 0.9 # Discount factor 
-        self.threshold = 0.01 # Convergence threshold
-        self.max_iterations = 100 
-        
-        # Initialize value function 
-        from util import Counter 
-        self.values = Counter() # V(s) for all states
-        
-        # Lazy evaluations 
-        for iteration in range(self.max_iterations):
-            # Collect states to update 
-            states_update = set(self.values.keys())
-            states_update.add(self.getStateKey(state)) # Add initial
-            
-            new_values = Counter()
-            max_change = 0 
-            
-            for s in self.all_states:
-                # skip terminal states (no food)
-                if len(s[1]) == 0:
-                    new_values[s] = 0
-                    continue 
-                
-                # Compute max over actions
-                max_value = float('-inf')
-                
-                for action in [Directions.NORTH, Directions.SOUTH,
-                               Directions.EAST, Directions.WEST]:
-                    # Compute Q(s,a) = P(s'|s,a) [R + gamma V(s')]
-                    q_value = 0 
-                    transitions = self.getTransitionStates(s, action)
-                    
-                    # Calculate the q_value 
-                    for next_s, prob in transitions:
-                        reward = self.getReward(s, action, next_s)
-                        q_value += prob * (reward + self.gamma * self.values[next_s])
-                    
-                    # Max value
-                    max_value = max(max_value, q_value)
-                
-                new_values[s] = max_value 
-                max_change = max(max_change, abs(new_values[s] - self.values[s]))
-                
-            self.values = new_values
-            
-            # Check convergence 
-            if max_change < self.threshold:
-                print(f"Convered after {iteration +1} iterations")
-                break 
-        
-        print("Value iteration Complete")
                             
