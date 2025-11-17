@@ -166,3 +166,63 @@ class MDPAgent(Agent):
         else: 
             # Time penalty for each move
             return -1
+
+    
+        
+    # Value iteration
+    def registerInitialState(self, state):
+        print("Running Value Iteration...")
+        
+        # Parameters 
+        self.gamma = 0.9 # Discount factor 
+        self.threshold = 0.01 # Convergence threshold
+        self.max_iterations = 100 
+        
+        # Initialize value function 
+        from util import Counter 
+        self.values = Counter() # V(s) for all states
+        
+        # Lazy evaluations 
+        for iteration in range(self.max_iterations):
+            # Collect states to update 
+            states_update = set(self.values.keys())
+            states_update.add(self.getStateKey(state)) # Add initial
+            
+            new_values = Counter()
+            max_change = 0 
+            
+            for s in self.all_states:
+                # skip terminal states (no food)
+                if len(s[1]) == 0:
+                    new_values[s] = 0
+                    continue 
+                
+                # Compute max over actions
+                max_value = float('-inf')
+                
+                for action in [Directions.NORTH, Directions.SOUTH,
+                               Directions.EAST, Directions.WEST]:
+                    # Compute Q(s,a) = P(s'|s,a) [R + gamma V(s')]
+                    q_value = 0 
+                    transitions = self.getTransitionStates(s, action)
+                    
+                    # Calculate the q_value 
+                    for next_s, prob in transitions:
+                        reward = self.getReward(s, action, next_s)
+                        q_value += prob * (reward + self.gamma * self.values[next_s])
+                    
+                    # Max value
+                    max_value = max(max_value, q_value)
+                
+                new_values[s] = max_value 
+                max_change = max(max_change, abs(new_values[s] - self.values[s]))
+                
+            self.values = new_values
+            
+            # Check convergence 
+            if max_change < self.threshold:
+                print(f"Convered after {iteration +1} iterations")
+                break 
+        
+        print("Value iteration Complete")
+                            
