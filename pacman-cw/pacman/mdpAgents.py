@@ -137,6 +137,21 @@ class MDPAgent(Agent):
         current_state = self.getStateKey(state)
         legal = api.legalActions(state)
         
+        
+         # Get positions for debugging
+        pacman_pos = api.whereAmI(state)
+        food_list = api.food(state)
+        ghosts = api.ghosts(state)
+        
+        # =====  DIAGNOSTIC OUTPUT =====
+        if len(food_list) <= 3:
+            print("\n=== DIAGNOSTIC ===")
+            print("Food remaining: %d at positions %s" % (len(food_list), food_list))
+            print("Pacman at: %s" % (pacman_pos,))
+            print("Legal actions: %s" % legal)
+            if len(ghosts) > 0:
+                print("Ghosts at: %s" % (ghosts,))
+        
         # Want to keep moving
         if Directions.STOP in legal:
             legal.remove(Directions.STOP)
@@ -153,8 +168,15 @@ class MDPAgent(Agent):
             
             # Sum all outcomes
             for next_s, prob in transitions:
-                reward = self.getReward(current_state, action, next_s)
+                reward = self.getReward(current_state, action, next_s, state)
                 q_value += prob * (reward + self.gamma * self.values[next_s])
+                
+             # ===== DIAGNOSTIC: Show Q-values =====
+            if len(food_list) <= 3:
+                dx, dy = self.direction_vectors[action]
+                next_pos = (pacman_pos[0] + dx, pacman_pos[1] + dy)
+                print("  %s -> %s: Q=%.2f (in walls: %s)" % 
+                    (action, next_pos, q_value, next_pos in self.walls))
                 
             # Track best action 
             if q_value > best_value:
@@ -164,12 +186,17 @@ class MDPAgent(Agent):
         # returns the best legal move
         return api.makeMove(best_action, legal)
     
+    
     # Getting current state 
     def getStateKey(self, state):
         current_pos = api.whereAmI(state)
         food_pos = api.food(state)
         # Convert food list to tuple 
         food_tuple = tuple(sorted(food_pos))
+        
+        # Add ghost positions 
+        ghosts = api.ghosts(state)
+        ghost_tuple = tuple(sorted(ghosts))
         
         return (current_pos, food_tuple)
     
