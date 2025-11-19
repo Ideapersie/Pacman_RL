@@ -236,8 +236,35 @@ class MDPAgent(Agent):
                 return 10 
         else: 
             # Time penalty for each move
-            return -1
-        
-    
+            reward += -1
+            
+        if game_state is not None:
+            
+            #Get ghost positions
+            ghost_position = api.ghosts(game_state)
+            
+            # Ghost penalties 
+            if len(ghost_position) > 0:
+                # Distance to nearest ghost 
+                min_ghost_dist = min(self.euclideanDistance(next_pos, g) for g in ghost_position)
+            
+                # Distance-based penalty
+                if min_ghost_dist == 0:
+                    # Punishment for collision 
+                    reward += -500
+                    
+                elif min_ghost_dist == 1:
+                    # Adjacent to ghost
+                    reward += -100
+                    
+                elif min_ghost_dist == 2:
+                    reward += -50
+                    
+        # If distance > 3, no penalty
+        return reward
+
+    # Helper function to calculate position difference 
+    def euclideanDistance(self, pos1, pos2):
+        return abs(pos1[0] - pos2[0]) + abs(pos1[1]- pos2[1])
         
                             
