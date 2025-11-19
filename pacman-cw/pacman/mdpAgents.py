@@ -227,13 +227,24 @@ class MDPAgent(Agent):
         current_food = set(state[1])
         next_food = set(next_state[1])
         
-        # Check if food was eaten 
+        # Simulate next state 
+        next_pos = next_state[0]
+        
+        # Base reward for food
+        reward = 0
+        
+        #print(f"food: {(next_food)}")
+        
+        # Check if food was eaten, Game WON! 
         if len(next_food) < len(current_food):
             #eaten all the food
             if len(next_food) == 0:
-                return 510 # + 10 for food, +500 for winning
+                reward += 500 # + 10 for food, +500 for winning
+            elif len(next_food) == 1:
+                reward += 100 # More attractive for lastest food
             else: 
-                return 10 
+                # Regular food pellets
+                reward += 15
         else: 
             # Time penalty for each move
             reward += -1
