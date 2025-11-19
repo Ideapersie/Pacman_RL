@@ -184,14 +184,18 @@ class MDPAgent(Agent):
         
         # 80% intended action 
         intended_next = self.simulateAction(state, action)
-        transitions.append((intended_next, 0.8))
+        transitions.append((intended_next, 1))
         
+        """
         # 10% each perpendicular direction 
         perpendicular = self.getPerpendicularActions(action)
         for perp_action in perpendicular:
             perp_next = self.simulateAction(state, perp_action)
             # 10 for each directions
             transitions.append((perp_next, 0.1))
+        """
+            
+        #print(f"Transitions {transitions}")
         return transitions
     
     def getPerpendicularActions(self, action):
@@ -219,12 +223,12 @@ class MDPAgent(Agent):
         if next_pos in food_list:
             food_list.remove(next_pos)
             
-        # Return next position and update food positions
+        # Return next position,update food positions & ghost positions
         return (next_pos, tuple(sorted(food_list)))
     
     # Calculate rward for transition 
-    def getReward(self, state, action, next_state):
-        current_food = set(state[1])
+    def getReward(self, state_key, action, next_state, game_state):
+        current_food = set(state_key[1])
         next_food = set(next_state[1])
         
         # Simulate next state 
