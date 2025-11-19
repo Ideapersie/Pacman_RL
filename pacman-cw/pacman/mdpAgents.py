@@ -68,6 +68,9 @@ class MDPAgent(Agent):
         from util import Counter 
         self.values = Counter() # V(s) for all states
         
+        # Update the walls
+        self.walls = api.walls(state)
+        
         # Lazy evaluations 
         for iteration in range(self.max_iterations):
             # Collect states to update 
@@ -106,7 +109,7 @@ class MDPAgent(Agent):
                     
                     # Calculate the q_value 
                     for next_s, prob in transitions:
-                        reward = self.getReward(s, action, next_s)
+                        reward = self.getReward(s, action, next_s, None)
                         q_value += prob * (reward + self.gamma * self.values[next_s])
                     
                     # Max value
@@ -118,7 +121,7 @@ class MDPAgent(Agent):
             self.values = new_values
             
             # Check convergence 
-            if max_change < self.theta:
+            if max_change < self.theta  and iteration > 10:
                 print(f"Convered after {iteration +1} iterations")
                 break 
         
