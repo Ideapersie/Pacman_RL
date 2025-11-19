@@ -63,8 +63,6 @@ class MDPAgent(Agent):
     # game state to access.
     def registerInitialState(self, state):
         print("Running registerInitialState for MDPAgent!")
-        print("I'm at:")
-        print(api.whereAmI(state))
         
         # Initialize value function 
         from util import Counter 
@@ -75,9 +73,6 @@ class MDPAgent(Agent):
             # Collect states to update 
             states_update = set(self.values.keys())
             states_update.add(self.getStateKey(state)) # Add initial
-            
-            # Update the walls
-            self.walls = api.walls(state)
             
             new_values = Counter()
             max_change = 0 
