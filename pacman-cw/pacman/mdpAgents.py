@@ -82,6 +82,18 @@ class MDPAgent(Agent):
             new_values = Counter()
             max_change = 0 
             
+            new_states = set()
+            
+            for s in states_update:
+                if len(s[1]) > 0:
+                    for action in [Directions.NORTH, Directions.SOUTH,
+                               Directions.EAST, Directions.WEST]:
+                        transitions = self.getTransitionStates(s, action)
+                        for next_s, prob in transitions:
+                            new_states.add(next_s)
+            
+            states_update.update(new_states)
+            
             for s in states_update:
                 # skip terminal states (no food)
                 if len(s[1]) == 0:
