@@ -42,90 +42,21 @@ class MDPAgent(Agent):
         print("Starting up MDPAgent!")
         name = "Pacman"
         
-        # MDP parameters 
-        self.gamma = 0.9 
+        # MDP Parameters 
+        # Discount factor 
+        self.gamma = 0.95 
+        # Theta for convergence 
         self.theta = 0.01
+        
+        # Max iterations 
         self.max_iterations = 100
-        
-        self.values = util.Counter()
-        
-        # Define direction vectors
-        self.direction_vectors = {
-            Directions.NORTH: (0, 1),
-            Directions.SOUTH: (0, -1),
-            Directions.EAST: (1, 0),
-            Directions.WEST: (-1, 0),
-            Directions.STOP: (0, 0)
-        }
-
 
     # Gets run after an MDPAgent object is created and once there is
     # game state to access.
     def registerInitialState(self, state):
         print("Running registerInitialState for MDPAgent!")
-        
-        # Initialize value function 
-        from util import Counter 
-        self.values = Counter() # V(s) for all states
-        
-        # Update the walls
-        self.walls = api.walls(state)
-        
-        # Lazy evaluations 
-        for iteration in range(self.max_iterations):
-            # Collect states to update 
-            states_update = set(self.values.keys())
-            states_update.add(self.getStateKey(state)) # Add initial
-            
-            new_values = Counter()
-            max_change = 0 
-            
-            new_states = set()
-            
-            for s in states_update:
-                if len(s[1]) > 0:
-                    for action in [Directions.NORTH, Directions.SOUTH,
-                               Directions.EAST, Directions.WEST]:
-                        transitions = self.getTransitionStates(s, action)
-                        for next_s, prob in transitions:
-                            new_states.add(next_s)
-            
-            states_update.update(new_states)
-            
-            for s in states_update:
-                # skip terminal states (no food)
-                if len(s[1]) == 0:
-                    new_values[s] = 0
-                    continue 
-                
-                # Compute max over actions
-                max_value = float('-inf')
-                
-                for action in [Directions.NORTH, Directions.SOUTH,
-                               Directions.EAST, Directions.WEST]:
-                    # Compute Q(s,a) = P(s'|s,a) [R + gamma V(s')]
-                    q_value = 0 
-                    transitions = self.getTransitionStates(s, action)
-                    
-                    # Calculate the q_value 
-                    for next_s, prob in transitions:
-                        reward = self.getReward(s, action, next_s, None)
-                        q_value += prob * (reward + self.gamma * self.values[next_s])
-                    
-                    # Max value
-                    max_value = max(max_value, q_value)
-                
-                new_values[s] = max_value 
-                max_change = max(max_change, abs(new_values[s] - self.values[s]))
-                
-            self.values = new_values
-            
-            # Check convergence 
-            if max_change < self.theta  and iteration > 10:
-                print(f"Convered after {iteration +1} iterations")
-                break 
-        
-        print("Value iteration Complete")
+        print("I'm at:")
+        print(api.whereAmI(state))
         
     # This is what gets run in between multiple games
     def final(self, state):
@@ -133,180 +64,170 @@ class MDPAgent(Agent):
 
     # For now I just move randomly
     def getAction(self, state):
-        # Curren state of env.
-        current_state = self.getStateKey(state)
+        # Get the actions we can try, and remove "STOP" if that is one of them.
         legal = api.legalActions(state)
-        
-        
-         # Get positions for debugging
-        pacman_pos = api.whereAmI(state)
-        food_list = api.food(state)
-        ghosts = api.ghosts(state)
-        
-        # =====  DIAGNOSTIC OUTPUT =====
-        if len(food_list) <= 3:
-            print("\n=== DIAGNOSTIC ===")
-            print("Food remaining: %d at positions %s" % (len(food_list), food_list))
-            print("Pacman at: %s" % (pacman_pos,))
-            print("Legal actions: %s" % legal)
-            if len(ghosts) > 0:
-                print("Ghosts at: %s" % (ghosts,))
-        
-        # Want to keep moving
         if Directions.STOP in legal:
             legal.remove(Directions.STOP)
-            
-        # Find best action using computed value
-        best_action = None
-        best_value = float('-inf')
         
-        # Evaluate each legal action
-        for action in legal:
-            # Compute expected value for action 
-            q_value = 0
-            transitions = self.getTransitionStates(current_state, action)
+        # Retrieve environment information 
+        pacman_pos = api.whereAmI(state)
+        food_pos = api.food(state)
+        # Making it iterable
+        food_set = set(food_pos)
+        # Capsules 
+        capsules = set(api.capsules(state))
+        walls = set(api.walls(state))
+        # Ghosts 
+        ghosts = api.ghostStatesWithTimes(state)
+        
+        # Map information 
+        corners = api.corners(state)
+        width = 0 
+        height = 0 
+        
+        for (x,y) in corners: 
+            if x >= width: width = x + 1
+            if y >= height: height = y + 1
             
-            # Sum all outcomes
-            for next_s, prob in transitions:
-                reward = self.getReward(current_state, action, next_s, state)
-                q_value += prob * (reward + self.gamma * self.values[next_s])
+        # Reward function 
+        rewards = {}
+        
+        # Liviing reward should be low, allows for finding long maze rewards
+        for x in range(width):
+            for y in range(height):
+                if (x,y) not in walls:
+                    rewards[(x,y)] = -0.05
+                    
+                    # Trap Check 
+                    wall_count = 0 
+                    
+                    for dx, dy in [(0,1), (0,-1), (1,0), (-1,0)]:
+                        nx, ny = x + dx, y + dy 
+                        if (nx, ny) in walls: 
+                            wall_count += 1
+                            
+                    # If 3 sides are wall = dead end trap, penalty equals to death
+                    if wall_count >= 3 and len(food_set) > 1:
+                        rewards[(x, y)] -= 750.0 
+        
+        # Food rewards in float, since living death is decimal
+        for f in food_set:
+            # Prevents trap reward overriding
+            rewards[f] = 10.0
+            
+        # Capsule reward, slightly higher
+        for c in capsules:
+            rewards[c] = 15.0
+            
+        # Ghost penalty
+        for ghost_pos, timer in ghosts:
+            gx, gy = int(ghost_pos[0]), int(ghost_pos[1])
+            
+            if timer > 0: # Scared ghosts
+                # Doesnt chase since timer could run it, risky 
+                pass
                 
-             # ===== DIAGNOSTIC: Show Q-values =====
-            if len(food_list) <= 3:
-                dx, dy = self.direction_vectors[action]
-                next_pos = (pacman_pos[0] + dx, pacman_pos[1] + dy)
-                print("  %s -> %s: Q=%.2f (in walls: %s)" % 
-                    (action, next_pos, q_value, next_pos in self.walls))
+            else: 
+                # Instant death, heavy penalty
+                rewards[(gx,gy)] = -1000.0
                 
-            # Track best action 
-            if q_value > best_value:
-                best_value = q_value 
-                best_action = action
+                # Area close to ghosts 
+                for dx, dy in [(0,1), (0,-1), (1,0), (-1,0)]:
+                    # Adds buffer distance, incase pacman slips
+                    nx, ny = gx + dx, gy + dy
+                    if 0 <= nx < width and 0 <= ny < height and (nx, ny) not in walls:
+                        rewards[(nx, ny)] -= 500.0
+            
+        # Value Iteration
+        values = {}
+        for x in range(width):
+            for y in range(height):
+                if (x,y) in walls:
+                    values[(x, y)] = 0.0
+                else:
+                    values[(x,y)] = rewards.get((x,y), 0.0)
+                    
+        # Run iterations
+        for i in range(self.max_iterations):
+            new_values = values.copy()
+            delta = 0 
+
+            for x in range(width):
+                for y in range(height):
+                    if (x,y) in walls:
+                        continue
+                    
+                    # Iterate over all directions 
+                    possible_actions = [Directions.NORTH, Directions.SOUTH, Directions.WEST, Directions.EAST]
+                    best_action_value = -99999.0
+                    
+                    for action in possible_actions:
+                        # Calculate expected value 
+                        expected_val = self.get_expected_value(x, y, action, values, walls, width, height)
+                        if expected_val > best_action_value:
+                            best_action_value = expected_val
+                            
+                    # Bellman equation update 
+                    new_value = rewards[(x,y)] + self.gamma * best_action_value
+                    new_values[(x,y)] = new_value
+                    
+                    delta = max(delta, abs(new_value - values[(x, y)]))
+                    
+            values = new_values
+            if delta < self.theta:
+                break
+            
+        # Select best action, after full value iteration 
+        best_action = Directions.STOP
+        max_utility = -99999.0
+        
+        px, py = pacman_pos
+        
+        for action in legal:
+            utility = self.get_expected_value(px, py, action, values, walls, width, height)
+            
+            # Check best utility 
+            if utility > max_utility:
+                max_utility = utility
+                best_action = action 
                 
-        # returns the best legal move
         return api.makeMove(best_action, legal)
     
-    
-    # Getting current state 
-    def getStateKey(self, state):
-        current_pos = api.whereAmI(state)
-        food_pos = api.food(state)
-        # Convert food list to tuple 
-        food_tuple = tuple(sorted(food_pos))
+    # Models non-determinism in api.py
+    def get_expected_value(self, x, y, action, values, walls, width, height):
+        # Map directions 
+        vectors = {
+            Directions.NORTH: (0, 1),
+            Directions.SOUTH: (0, -1),
+            Directions.EAST: (1, 0),
+            Directions.WEST: (-1, 0)
+        }
         
-        # Add ghost positions 
-        ghosts = api.ghosts(state)
-        ghost_tuple = tuple(sorted(ghosts))
+        # Define transition probability to account for slipup
+        if action == Directions.NORTH:
+            moves = [(0.8, vectors[Directions.NORTH]), (0.1, vectors[Directions.EAST]), (0.1, vectors[Directions.WEST])]
         
-        return (current_pos, food_tuple)
-    
-    # Transition function
-    def getTransitionStates(self, state, action):
-        """
-        Returns list of (next_state, probability) tuples
-        taking 'action' from 'state' 
-        """
-        
-        transitions = []
-        
-        # 80% intended action 
-        intended_next = self.simulateAction(state, action)
-        transitions.append((intended_next, 1))
-        
-        """
-        # 10% each perpendicular direction 
-        perpendicular = self.getPerpendicularActions(action)
-        for perp_action in perpendicular:
-            perp_next = self.simulateAction(state, perp_action)
-            # 10 for each directions
-            transitions.append((perp_next, 0.1))
-        """
+        elif action == Directions.SOUTH:
+            moves = [(0.8, vectors[Directions.SOUTH]), (0.1, vectors[Directions.EAST]), (0.1, vectors[Directions.WEST])]
             
-        #print(f"Transitions {transitions}")
-        return transitions
-    
-    def getPerpendicularActions(self, action):
-        # Perpendicular to vertical
-        if action == Directions.NORTH or action == Directions.SOUTH:
-            return[Directions.EAST, Directions.WEST]
-        # when its EAST or WEST
+        elif action == Directions.EAST:
+            moves = [(0.8, vectors[Directions.EAST]), (0.1, vectors[Directions.NORTH]), (0.1, vectors[Directions.SOUTH])]
+            
+        elif action == Directions.WEST:
+            moves = [(0.8, vectors[Directions.WEST]), (0.1, vectors[Directions.NORTH]), (0.1, vectors[Directions.SOUTH])]
+            
         else: 
-            return[Directions.NORTH, Directions.SOUTH]
+            return values.get((x, y), 0.0)
         
-    # Simulate taking action, returns state 
-    def simulateAction(self, state_key, action):
-        pacman_pos, food_tuple = state_key
-        food_list = list(food_tuple)
+        expected_value = 0.0
         
-        # Get next position based on action 
-        x, y = self.direction_vectors[action]
-        next_pos = (pacman_pos[0] + x, pacman_pos[1] + y)
-        
-        # Check if wall 
-        if next_pos in self.walls:
-            next_pos = pacman_pos
+        # Simulation loop, checking 
+        for prob, (dx, dy) in moves:
+            nx, ny = int( x+dx), int (y+dy)
             
-        # Update food if eaten 
-        if next_pos in food_list:
-            food_list.remove(next_pos)
-            
-        # Return next position,update food positions & ghost positions
-        return (next_pos, tuple(sorted(food_list)))
-    
-    # Calculate rward for transition 
-    def getReward(self, state_key, action, next_state, game_state):
-        current_food = set(state_key[1])
-        next_food = set(next_state[1])
-        
-        # Simulate next state 
-        next_pos = next_state[0]
-        
-        # Base reward for food
-        reward = 0
-        
-        #print(f"food: {(next_food)}")
-        
-        # Check if food was eaten, Game WON! 
-        if len(next_food) < len(current_food):
-            #eaten all the food
-            if len(next_food) == 0:
-                reward += 500 # + 10 for food, +500 for winning
-            elif len(next_food) == 1:
-                reward += 100 # More attractive for lastest food
-            else: 
-                # Regular food pellets
-                reward += 15
-        else: 
-            # Time penalty for each move
-            reward += -1
-            
-        if game_state is not None:
-            
-            #Get ghost positions
-            ghost_position = api.ghosts(game_state)
-            
-            # Ghost penalties 
-            if len(ghost_position) > 0:
-                # Distance to nearest ghost 
-                min_ghost_dist = min(self.euclideanDistance(next_pos, g) for g in ghost_position)
-            
-                # Distance-based penalty
-                if min_ghost_dist == 0:
-                    # Punishment for collision 
-                    reward += -500
-                    
-                elif min_ghost_dist == 1:
-                    # Adjacent to ghost
-                    reward += -100
-                    
-                elif min_ghost_dist == 2:
-                    reward += -50
-                    
-        # If distance > 3, no penalty
-        return reward
-
-    # Helper function to calculate position difference 
-    def euclideanDistance(self, pos1, pos2):
-        return abs(pos1[0] - pos2[0]) + abs(pos1[1]- pos2[1])
-        
-                            
+            # Wall check 
+            if (nx, ny) in walls or nx < 0 or nx >= width or ny < 0 or ny >= height:
+                nx, ny = x, y
+                
+            expected_value += prob * values.get((nx,ny), 0.0)
+        return expected_value
